@@ -10,7 +10,7 @@ use rand::seq::SliceRandom;
 use bevy_ecs::prelude::*;
 use bevy_ecs::component::Component;
 
-use mob::{MOB_TYPES, MobType};
+use mob::MOB_TYPES;
 
 #[derive(NativeClass)]
 #[inherit(Node2D)]
@@ -50,7 +50,7 @@ impl Main {
             .with_system_set(State::<AppState>::get_driver())
             .with_system_set(
                 SystemSet::on_enter(AppState::InGame)
-                    .with_system(cleanup_mobs.system())
+                    .with_system(cleanup_nodes.system())
             )
             .with_system_set(
                 SystemSet::on_update(AppState::InGame)
@@ -191,11 +191,12 @@ impl Main {
 
         let mut rng = rand::thread_rng();
         let animated_sprite = unsafe {
-            owner
+            mob_scene
                 .get_node_as::<AnimatedSprite>("animated_sprite")
                 .unwrap()
         };
-        animated_sprite.set_animation(MOB_TYPES.choose(&mut rng).unwrap().to_str());
+        let animation = MOB_TYPES.choose(&mut rng).unwrap().to_str();
+        animated_sprite.set_animation(animation);
 
         let hud = unsafe { owner.get_node_as_instance::<hud::Hud>("hud").unwrap() };
 
@@ -240,8 +241,8 @@ pub struct Spatial {
 
 pub struct Velocity(Vector2);
 
-fn movement(delta: Res<Delta>, mut query: Query<(&mut Spatial, &mut Velocity)>) {
-    for (mut spat, mut vel) in query.iter_mut() {
+fn movement(delta: Res<Delta>, mut query: Query<(&mut Spatial, &Velocity)>) {
+    for (mut spat, vel) in query.iter_mut() {
         spat.position.x += vel.0.x * delta.0;
         spat.position.y += vel.0.y * delta.0;
     }
@@ -264,11 +265,11 @@ pub fn sync_entity(
         }
 
         node.set_position(spat.position);
-        node.set_rotation(spat.rotation as f64);
+        //node.set_rotation(spat.rotation as f64);
     }
 }
 
-fn cleanup_mobs(
+fn cleanup_nodes(
     mut commands: Commands,
     mut q: Query<(Entity, &mut GodotNode)>,
 ) {
