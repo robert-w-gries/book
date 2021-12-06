@@ -1,4 +1,4 @@
-use gdnative::api::{AnimatedSprite, Area2D, CollisionShape2D, PhysicsBody2D};
+use gdnative::api::{Area2D, CollisionShape2D, PhysicsBody2D};
 use gdnative::prelude::*;
 
 /// The player "class"
@@ -6,12 +6,7 @@ use gdnative::prelude::*;
 #[inherit(Area2D)]
 #[user_data(user_data::MutexData<Player>)]
 #[register_with(Self::register_player)]
-pub struct Player {
-    #[property(default = 400.0)]
-    speed: f32,
-
-    screen_size: Vector2,
-}
+pub struct Player;
 
 #[methods]
 impl Player {
@@ -23,22 +18,12 @@ impl Player {
     }
 
     fn new(_owner: &Area2D) -> Self {
-        Player {
-            speed: 400.0,
-            screen_size: Vector2::new(0.0, 0.0),
-        }
+        Player {}
     }
 
     #[export]
     fn _ready(&mut self, owner: &Area2D) {
-        let viewport = owner.get_viewport_rect();
-        self.screen_size = viewport.size;
         owner.hide();
-    }
-
-    #[export]
-    fn _process(&mut self, owner: &Area2D, delta: f32) {
-
     }
 
     #[export]

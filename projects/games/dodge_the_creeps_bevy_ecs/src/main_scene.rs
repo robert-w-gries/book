@@ -28,15 +28,11 @@ pub struct Main {
     world: World,
 }
 
-
-
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum AppState {
     MainMenu,
     InGame,
 }
-
-const PRESSED_ACTIONS: &[&str] = &["ui_left", "ui_right", "ui_down", "ui_up"];
 
 #[methods]
 impl Main {
@@ -75,7 +71,7 @@ impl Main {
         if !e.is_action_type () {
             return;
         }
-        for action in PRESSED_ACTIONS {
+        for action in events::PRESSED_ACTIONS {
             if e.is_action(action) {
                 let mut events = self.world.get_resource_mut::<bevy_app::Events<events::InputEvent>>().unwrap();
                 if e.is_pressed() && !e.is_echo() {
@@ -114,14 +110,7 @@ impl Main {
 			.expect("we just added SimDt in Ecs::new");
         delta.0 = dt as f32;
 		self.schedule.run(&mut self.world);
-        // todo: self.sim_schedule.run(&mut self.world);
 	}
-
-    /*
-    fn _process(&mut self, _owner: &Node2D, dt: f64) {
-        self.idle_schedule.run(&mut self.world);
-    }
-    */
 
     #[export]
     fn game_over(&mut self, owner: &Node2D) {
@@ -190,7 +179,6 @@ impl Main {
 
     #[export]
     fn on_mob_timer_timeout(&mut self, owner: &Node2D) {
-        return;
         let mob_spawn_location = unsafe {
             owner
                 .get_node_as::<PathFollow2D>("mob_path/mob_spawn_locations")
@@ -251,13 +239,3 @@ where
         .try_cast::<Root>()
         .expect("root node type should be correct")
 }
-
-pub fn load_scene(path: &str) -> Option<Ref<PackedScene, ThreadLocal>> {
-    let scene = ResourceLoader::godot_singleton().load(path, "PackedScene", false)?;
-    let scene = unsafe { scene.assume_safe() };
-  
-    // scene.cast::<PackedScene>()
-    return None;
-}
-
-

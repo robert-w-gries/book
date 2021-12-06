@@ -7,7 +7,6 @@ use gdnative::prelude::{NodeExt, Vector2};
 
 use bevy_app::prelude::*;
 use bevy_ecs::prelude::*;
-use bevy_ecs::component::Component;
 
 pub fn movement(screen_size: Res<ScreenSize>, delta: Res<Delta>, mut query: Query<(&mut Spatial, &Velocity, Option<&Player>)>) {
     for (mut spat, vel, is_player) in query.iter_mut() {
@@ -86,38 +85,38 @@ pub fn process_player_movement(
     mut input_events: EventReader<InputEvent>,
     mut q: Query<(&mut Velocity, &Speed), With<Player>>,
 ) {
-    let (mut player_velocity, speed) = q.single_mut().expect("There should always be exactly one player in the game!");
+    let (mut velocity, speed) = q.single_mut().expect("There should always be exactly one player in the game!");
     for event in input_events.iter() {
-        let Vector2 { x: velocity_x, y: velocity_y } = player_velocity.0;
+        let Vector2 { x: velocity_x, y: velocity_y } = velocity.0;
         if let Action::Released(action) = event.0 {
             match action {
                 "ui_right" => {
-                    player_velocity.0.x = velocity_x - speed.0;
+                    velocity.0.x = velocity_x - speed.0;
                 },
                 "ui_left" => {
-                    player_velocity.0.x = velocity_x + speed.0;
+                    velocity.0.x = velocity_x + speed.0;
                 },
                 "ui_down" => {
-                    player_velocity.0.y = velocity_y - speed.0;
+                    velocity.0.y = velocity_y - speed.0;
                 },
                 "ui_up" => {
-                    player_velocity.0.y = velocity_y + speed.0;
+                    velocity.0.y = velocity_y + speed.0;
                 },
                 _ => (),
             };
         } else if let Action::Pressed(action) = event.0 {
             match action {
                 "ui_right" => {
-                    player_velocity.0.x = velocity_x + speed.0;
+                    velocity.0.x = velocity_x + speed.0;
                 },
                 "ui_left" => {
-                    player_velocity.0.x = velocity_x - speed.0;
+                    velocity.0.x = velocity_x - speed.0;
                 },
                 "ui_down" => {
-                    player_velocity.0.y = velocity_y + speed.0;
+                    velocity.0.y = velocity_y + speed.0;
                 },
                 "ui_up" => {
-                    player_velocity.0.y = velocity_y - speed.0;
+                    velocity.0.y = velocity_y - speed.0;
                 },
                 _ => (),
             };
@@ -133,14 +132,5 @@ pub fn cleanup_mobs(
         let node = unsafe { godot.0.assume_safe() };
         commands.entity(e).despawn();
         node.queue_free();
-    }
-}
-
-pub fn cleanup_system<T: Component>(
-    mut commands: Commands,
-    q: Query<Entity, With<T>>,
-) {
-    for e in q.iter() {
-        commands.entity(e).despawn();
     }
 }
