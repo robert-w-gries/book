@@ -114,7 +114,7 @@ impl Main {
 
     #[export]
     fn game_over(&mut self, owner: &Node2D) {
-        let mut app_state = self.world.get_resource_mut::<State<AppState>>().expect("we just added SimDt in Ecs::new");
+        let mut app_state = self.world.get_resource_mut::<State<AppState>>().expect("Unable to retrieve AppState");
         app_state.set(AppState::MainMenu).unwrap();
 
         let score_timer = unsafe { owner.get_node_as::<Timer>("score_timer").unwrap() };
@@ -131,7 +131,7 @@ impl Main {
 
     #[export]
     fn new_game(&mut self, owner: &Node2D) {
-        let mut app_state = self.world.get_resource_mut::<State<AppState>>().expect("we just added SimDt in Ecs::new");
+        let mut app_state = self.world.get_resource_mut::<State<AppState>>().expect("Unable to retrieve AppState");
         app_state.set(AppState::InGame).unwrap();
 
         let player = unsafe {
