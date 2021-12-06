@@ -1,14 +1,19 @@
+use crate::components::{GodotNode, Mob, Player, Spatial, Velocity};
+use crate::events::{self, Action};
 use crate::hud;
 use crate::mob;
 use crate::player;
+use crate::resources::{Delta, ScreenSize};
+use crate::systems::*;
+
 use gdnative::api::{AnimatedSprite, PathFollow2D, Position2D, RigidBody2D};
 use gdnative::prelude::*;
 use rand::*;
 use std::f64::consts::PI;
 use rand::seq::SliceRandom;
 
+use bevy_app::prelude::*;
 use bevy_ecs::prelude::*;
-use bevy_ecs::component::Component;
 
 use mob::MOB_TYPES;
 
@@ -24,16 +29,6 @@ pub struct Main {
 }
 
 
-#[derive(Default)]
-pub struct Delta(f32);
-
-pub struct ScreenSize(Vector2);
-
-#[derive(Debug, Hash, PartialEq, Eq, Clone, StageLabel)]
-struct Update;
-
-#[derive(Debug, Hash, PartialEq, Eq, Clone, StageLabel)]
-struct PostUpdate;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum AppState {
@@ -41,31 +36,25 @@ pub enum AppState {
     InGame,
 }
 
+const PRESSED_ACTIONS: &[&str] = &["ui_left", "ui_right", "ui_down", "ui_up"];
+
 #[methods]
 impl Main {
     fn new(_owner: &Node2D) -> Self {
-        let mut schedule = Schedule::default();
-        
-        schedule.add_stage(Update, SystemStage::parallel()
-            .with_system_set(State::<AppState>::get_driver())
-            .with_system_set(
-                SystemSet::on_enter(AppState::InGame)
-                    .with_system(cleanup_nodes.system())
+        let mut builder = App::build();
+        builder
+            .add_state(AppState::MainMenu)
+            .add_event::<events::InputEvent>()
+            .add_system_to_stage(CoreStage::PreUpdate, process_player_movement.system())
+            .add_system_set(
+                SystemSet::on_enter(AppState::InGame).with_system(cleanup_mobs.system())
             )
-            .with_system_set(
-                SystemSet::on_update(AppState::InGame)
-                    .with_system(movement.system())
+            .add_system_set(
+                SystemSet::on_update(AppState::InGame).with_system(movement.system())
             )
-        );
-        schedule.add_stage(PostUpdate, SystemStage::single_threaded().with_system(sync_entity.system()));
-
-        let mut world = World::default();
+            .add_system_to_stage(CoreStage::PostUpdate, sync_entity.system());
+        let App { schedule, mut world, .. } = builder.app;
         world.insert_resource(Delta::default());
-
-        let window_size = gdnative::api::OS::godot_singleton().window_size();
-        world.insert_resource(ScreenSize(window_size));
-
-        world.insert_resource(State::new(AppState::MainMenu));
 
         Main {
             mob: PackedScene::new().into_shared(),
@@ -73,6 +62,43 @@ impl Main {
             schedule,
             world,
         }
+    }
+
+    #[export]
+    fn _input(&mut self, _owner: &Node2D, event: Ref<InputEvent>) {
+        let e = unsafe { event.assume_safe() };
+        if !e.is_action_type () {
+            return;
+        }
+        for action in PRESSED_ACTIONS {
+            if e.is_action(action) {
+                let mut events = self.world.get_resource_mut::<bevy_app::Events<events::InputEvent>>().unwrap();
+                if e.is_pressed() {
+                    events.send(events::InputEvent(Action::Pressed(action)));
+                } else if !e.is_pressed() {
+                    events.send(events::InputEvent(Action::Released(action)));
+                }
+            }
+        }
+    }
+
+    #[export]
+    fn _ready(&mut self, owner: &Node2D) {
+        let player = unsafe {
+            owner
+                .get_node_as::<Node2D>("player")
+                .unwrap()
+                .claim()
+        };
+        let start_position = unsafe { owner.get_node_as::<Position2D>("start_position").unwrap() };
+        self.world.spawn()
+            .insert(Player)
+            .insert(Spatial { position: start_position.position(), rotation: 0.0 } )
+            .insert(Velocity(Vector2::default()))
+            .insert(GodotNode(player));
+
+        let viewport = owner.get_viewport_rect();
+        self.world.insert_resource(ScreenSize(viewport.size));
     }
 
     #[export]
@@ -113,7 +139,6 @@ impl Main {
         let mut app_state = self.world.get_resource_mut::<State<AppState>>().expect("we just added SimDt in Ecs::new");
         app_state.set(AppState::InGame).unwrap();
 
-        let start_position = unsafe { owner.get_node_as::<Position2D>("start_position").unwrap() };
         let player = unsafe {
             owner
                 .get_node_as_instance::<player::Player>("player")
@@ -124,7 +149,7 @@ impl Main {
         self.score = 0;
 
         player
-            .map(|x, o| x.start(&*o, start_position.position()))
+            .map(|x, o| x.start(&*o))
             .ok()
             .unwrap_or_else(|| godot_print!("Unable to get player"));
 
@@ -165,7 +190,7 @@ impl Main {
                 .unwrap()
         };
 
-        let mob_scene: Ref<RigidBody2D, _> = instance_scene(&self.mob);
+        let mob_instance: Ref<RigidBody2D, _> = instance_scene(&self.mob);
 
         let mut rng = rand::thread_rng();
         let offset = rng.gen_range(std::u32::MIN..std::u32::MAX);
@@ -174,24 +199,25 @@ impl Main {
 
         let mut direction = mob_spawn_location.rotation() + PI / 2.0;
 
-        mob_scene.set_position(mob_spawn_location.position());
+        mob_instance.set_position(mob_spawn_location.position());
 
         direction += rng.gen_range(-PI / 4.0..PI / 4.0);
-        mob_scene.set_rotation(direction);
-        mob_scene.set_linear_velocity(Vector2::new(rng.gen_range(150.0..250.0), 0.0));
-        mob_scene.set_linear_velocity(mob_scene.linear_velocity().rotated(direction as f32));
+        mob_instance.set_rotation(direction);
+        mob_instance.set_linear_velocity(Vector2::new(rng.gen_range(150.0..250.0), 0.0));
+        mob_instance.set_linear_velocity(mob_instance.linear_velocity().rotated(direction as f32));
 
-        let mob_entity = mob_scene.into_shared();
-        let mob_scene = unsafe { mob_entity.assume_safe() };
-        owner.add_child(mob_scene, false);
+        let mob_entity = mob_instance.into_shared();
+        let mob = unsafe { mob_entity.assume_safe() };
+        owner.add_child(mob, false);
         self.world.spawn()
-            .insert(Spatial { position: mob_scene.position(), rotation: mob_scene.rotation() as f32 } )
-            .insert(Velocity(mob_scene.linear_velocity()))
-            .insert(GodotNode(mob_entity));
+            .insert(Mob)
+            .insert(Spatial { position: mob.position(), rotation: mob.rotation() as f32 } )
+            .insert(Velocity(mob.linear_velocity()))
+            .insert(GodotNode(mob.upcast::<Node2D>().claim()));
 
         let mut rng = rand::thread_rng();
         let animated_sprite = unsafe {
-            mob_scene
+            mob
                 .get_node_as::<AnimatedSprite>("animated_sprite")
                 .unwrap()
         };
@@ -203,7 +229,7 @@ impl Main {
         hud.map(|_, o| {
             o.connect(
                 "start_game",
-                mob_scene,
+                mob,
                 "on_start_game",
                 VariantArray::new_shared(),
                 0,
@@ -232,59 +258,12 @@ where
         .expect("root node type should be correct")
 }
 
-pub struct GodotNode(Ref<RigidBody2D>);
-
-pub struct Spatial {
-    pub position: Vector2,
-    pub rotation: f32,
+pub fn load_scene(path: &str) -> Option<Ref<PackedScene, ThreadLocal>> {
+    let scene = ResourceLoader::godot_singleton().load(path, "PackedScene", false)?;
+    let scene = unsafe { scene.assume_safe() };
+  
+    // scene.cast::<PackedScene>()
+    return None;
 }
 
-pub struct Velocity(Vector2);
 
-fn movement(delta: Res<Delta>, mut query: Query<(&mut Spatial, &Velocity)>) {
-    for (mut spat, vel) in query.iter_mut() {
-        spat.position.x += vel.0.x * delta.0;
-        spat.position.y += vel.0.y * delta.0;
-    }
-}
-
-pub fn sync_entity(
-    screen_size: Res<ScreenSize>,
-    mut commands: Commands,
-    mut q: Query<(Entity, &Spatial, &mut GodotNode)>,
-) {
-    for (e, spat, mut godot) in q.iter_mut() {
-        let node = unsafe { godot.0.assume_safe() };
-        let Vector2 { x: pos_x, y: pos_y } = spat.position;
-        let Vector2 { x: size_x, y: size_y } = screen_size.0;
-
-        if pos_x < 0.0 || pos_x > size_x + 0.0 || pos_y < 0.0 || pos_y > size_y + 0.0  {
-            commands.entity(e).despawn();
-            node.queue_free();
-            continue;
-        }
-
-        node.set_position(spat.position);
-        //node.set_rotation(spat.rotation as f64);
-    }
-}
-
-fn cleanup_nodes(
-    mut commands: Commands,
-    mut q: Query<(Entity, &mut GodotNode)>,
-) {
-    for (e, mut godot) in q.iter_mut() {
-        let node = unsafe { godot.0.assume_safe() };
-        commands.entity(e).despawn();
-        node.queue_free();
-    }
-}
-
-fn cleanup_system<T: Component>(
-    mut commands: Commands,
-    q: Query<Entity, With<T>>,
-) {
-    for e in q.iter() {
-        commands.entity(e).despawn();
-    }
-}

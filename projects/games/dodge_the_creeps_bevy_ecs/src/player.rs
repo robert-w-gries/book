@@ -38,56 +38,7 @@ impl Player {
 
     #[export]
     fn _process(&mut self, owner: &Area2D, delta: f32) {
-        let animated_sprite = unsafe {
-            owner
-                .get_node_as::<AnimatedSprite>("animated_sprite")
-                .unwrap()
-        };
 
-        let input = Input::godot_singleton();
-        let mut velocity = Vector2::new(0.0, 0.0);
-
-        if Input::is_action_pressed(input, "ui_right") {
-            velocity.x += 1.0
-        }
-        if Input::is_action_pressed(input, "ui_left") {
-            velocity.x -= 1.0
-        }
-        if Input::is_action_pressed(input, "ui_down") {
-            velocity.y += 1.0
-        }
-        if Input::is_action_pressed(input, "ui_up") {
-            velocity.y -= 1.0
-        }
-
-        if velocity.length() > 0.0 {
-            velocity = velocity.normalized() * self.speed;
-
-            let animation;
-
-            if velocity.x != 0.0 {
-                animation = "right";
-
-                animated_sprite.set_flip_v(false);
-                animated_sprite.set_flip_h(velocity.x < 0.0)
-            } else {
-                animation = "up";
-
-                animated_sprite.set_flip_v(velocity.y > 0.0)
-            }
-
-            animated_sprite.play(animation, false);
-        } else {
-            animated_sprite.stop();
-        }
-
-        let change = velocity * delta;
-        let position = owner.global_position() + change;
-        let position = Vector2::new(
-            position.x.max(0.0).min(self.screen_size.x),
-            position.y.max(0.0).min(self.screen_size.y),
-        );
-        owner.set_global_position(position);
     }
 
     #[export]
@@ -105,8 +56,7 @@ impl Player {
     }
 
     #[export]
-    pub fn start(&self, owner: &Area2D, pos: Vector2) {
-        owner.set_global_position(pos);
+    pub fn start(&self, owner: &Area2D) {
         owner.show();
 
         let collision_shape = unsafe {
