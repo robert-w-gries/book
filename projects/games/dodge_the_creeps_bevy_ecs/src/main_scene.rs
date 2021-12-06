@@ -1,4 +1,4 @@
-use crate::components::{GodotNode, Mob, Player, Spatial, Velocity};
+use crate::components::{GodotNode, Mob, Player, Spatial, Speed, Velocity};
 use crate::events::{self, Action};
 use crate::hud;
 use crate::mob;
@@ -47,12 +47,17 @@ impl Main {
             .add_event::<events::InputEvent>()
             .add_system_to_stage(CoreStage::PreUpdate, process_player_movement.system())
             .add_system_set(
-                SystemSet::on_enter(AppState::InGame).with_system(cleanup_mobs.system())
+                SystemSet::on_enter(AppState::InGame)
+                    .with_system(cleanup_mobs.system())
+                    .with_system(reset_player_position.system())
             )
             .add_system_set(
-                SystemSet::on_update(AppState::InGame).with_system(movement.system())
+                SystemSet::on_update(AppState::InGame)
+                    .with_system(movement.system())
+                    .with_system(set_player_animation.system())
             )
             .add_system_to_stage(CoreStage::PostUpdate, sync_entity.system());
+
         let App { schedule, mut world, .. } = builder.app;
         world.insert_resource(Delta::default());
 
@@ -73,7 +78,7 @@ impl Main {
         for action in PRESSED_ACTIONS {
             if e.is_action(action) {
                 let mut events = self.world.get_resource_mut::<bevy_app::Events<events::InputEvent>>().unwrap();
-                if e.is_pressed() {
+                if e.is_pressed() && !e.is_echo() {
                     events.send(events::InputEvent(Action::Pressed(action)));
                 } else if !e.is_pressed() {
                     events.send(events::InputEvent(Action::Released(action)));
@@ -90,10 +95,11 @@ impl Main {
                 .unwrap()
                 .claim()
         };
-        let start_position = unsafe { owner.get_node_as::<Position2D>("start_position").unwrap() };
+        let start_position = unsafe { owner.get_node_as::<Position2D>("player/start_position").unwrap() };
         self.world.spawn()
             .insert(Player)
             .insert(Spatial { position: start_position.position(), rotation: 0.0 } )
+            .insert(Speed(400.0))
             .insert(Velocity(Vector2::default()))
             .insert(GodotNode(player));
 
@@ -184,6 +190,7 @@ impl Main {
 
     #[export]
     fn on_mob_timer_timeout(&mut self, owner: &Node2D) {
+        return;
         let mob_spawn_location = unsafe {
             owner
                 .get_node_as::<PathFollow2D>("mob_path/mob_spawn_locations")
@@ -223,19 +230,6 @@ impl Main {
         };
         let animation = MOB_TYPES.choose(&mut rng).unwrap().to_str();
         animated_sprite.set_animation(animation);
-
-        let hud = unsafe { owner.get_node_as_instance::<hud::Hud>("hud").unwrap() };
-
-        hud.map(|_, o| {
-            o.connect(
-                "start_game",
-                mob,
-                "on_start_game",
-                VariantArray::new_shared(),
-                0,
-            )
-            .unwrap();
-        }).unwrap();
     }
 }
 

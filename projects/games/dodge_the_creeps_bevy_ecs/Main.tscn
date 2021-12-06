@@ -16,6 +16,9 @@ mob = ExtResource( 2 )
 
 [node name="player" parent="." instance=ExtResource( 3 )]
 
+[node name="start_position" type="Position2D" parent="player"]
+position = Vector2( 240, 450 )
+
 [node name="mob_timer" type="Timer" parent="."]
 wait_time = 0.5
 
@@ -24,9 +27,6 @@ wait_time = 0.5
 [node name="start_timer" type="Timer" parent="."]
 wait_time = 2.0
 one_shot = true
-
-[node name="start_position" type="Position2D" parent="."]
-position = Vector2( 240, 450 )
 
 [node name="mob_path" type="Path2D" parent="."]
 position = Vector2( -14.8249, -12.98 )

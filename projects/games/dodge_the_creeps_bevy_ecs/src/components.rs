@@ -12,3 +12,5 @@ pub struct Mob;
 pub struct Velocity(pub Vector2);
 
 pub struct Player;
+
+pub struct Speed(pub f32);
